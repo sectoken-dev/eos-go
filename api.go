@@ -559,7 +559,7 @@ func (api *API) GetCurrencyStats(ctx context.Context, code AccountName, symbol s
 	return
 }
 
-func (api *API) CallRaw(endpoint string, body, out interface{}) error {
+func (api *API) CallRaw(ctx context.Context, endpoint string, body, out interface{}) error {
 	jsonBody, err := enc(body)
 	if err != nil {
 		return err
@@ -589,7 +589,7 @@ func (api *API) CallRaw(endpoint string, body, out interface{}) error {
 		fmt.Println("")
 	}
 
-	resp, err := api.HttpClient.Do(req)
+	resp, err := api.HttpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("%s: %s", req.URL.String(), err)
 	}
