@@ -559,6 +559,91 @@ func (api *API) GetCurrencyStats(ctx context.Context, code AccountName, symbol s
 	return
 }
 
+func (api *API) CallRaw(endpoint string, body, out interface{}) error {
+	jsonBody, err := enc(body)
+	if err != nil {
+		return err
+	}
+
+	targetURL := fmt.Sprintf("%s/%s", api.BaseURL, endpoint)
+	req, err := http.NewRequest("POST", targetURL, jsonBody)
+	if err != nil {
+		return fmt.Errorf("NewRequest: %s", err)
+	}
+
+	for k, v := range api.Header {
+		if req.Header == nil {
+			req.Header = http.Header{}
+		}
+		req.Header[k] = append(req.Header[k], v...)
+	}
+
+	if api.Debug {
+		// Useful when debugging API calls
+		requestDump, err := httputil.DumpRequest(req, true)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("-------------------------------")
+		fmt.Println(string(requestDump))
+		fmt.Println("")
+	}
+
+	resp, err := api.HttpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%s: %s", req.URL.String(), err)
+	}
+	defer resp.Body.Close()
+
+	var cnt bytes.Buffer
+	_, err = io.Copy(&cnt, resp.Body)
+	if err != nil {
+		return fmt.Errorf("Copy: %s", err)
+	}
+
+	if resp.StatusCode == 404 {
+		var apiErr APIError
+		if err := json.Unmarshal(cnt.Bytes(), &apiErr); err != nil {
+			return ErrNotFound
+		}
+		return apiErr
+	}
+
+	if resp.StatusCode > 299 {
+		var apiErr APIError
+		if err := json.Unmarshal(cnt.Bytes(), &apiErr); err != nil {
+			return fmt.Errorf("%s: status code=%d, body=%s", req.URL.String(), resp.StatusCode, cnt.String())
+		}
+
+		// Handle cases where some API calls (/v1/chain/get_account for example) returns a 500
+		// error when retrieving data that does not exist.
+		if apiErr.IsUnknownKeyError() {
+			return ErrNotFound
+		}
+
+		return apiErr
+	}
+
+	if api.Debug {
+		fmt.Println("RESPONSE:")
+		responseDump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("-------------------------------")
+		fmt.Println(cnt.String())
+		fmt.Println("-------------------------------")
+		fmt.Printf("%q\n", responseDump)
+		fmt.Println("")
+	}
+
+	if err := json.Unmarshal(cnt.Bytes(), &out); err != nil {
+		return fmt.Errorf("Unmarshal: %s", err)
+	}
+
+	return nil
+}
+
 // See more here: libraries/chain/contracts/abi_serializer.cpp:58...
 
 func (api *API) call(ctx context.Context, baseAPI string, endpoint string, body interface{}, out interface{}) error {
