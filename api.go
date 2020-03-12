@@ -564,8 +564,7 @@ func (api *API) CallRaw(ctx context.Context, endpoint string, body, out interfac
 	if err != nil {
 		return err
 	}
-
-	targetURL := fmt.Sprintf("%s/%s", api.BaseURL, endpoint)
+	targetURL := fmt.Sprintf("%s", api.BaseURL)
 	req, err := http.NewRequest("POST", targetURL, jsonBody)
 	if err != nil {
 		return fmt.Errorf("NewRequest: %s", err)
